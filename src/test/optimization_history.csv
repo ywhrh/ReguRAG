@@ -1,0 +1,12 @@
+date,change_made,retrieval_recall,answer_accuracy,fallback_correct,notes
+2026-06-21,Baseline (chunk=512 top-k=3),73%,70%,2/3,Starting version - first baseline numbers
+2026-06-22,chunk size 512 -> 256,80%,77%,3/3,EXAMPLE ROW - recall improved after smaller chunks
+2026-06-23,top-k 3 -> 5,85%,80%,3/3,EXAMPLE ROW - more retrieved context helped
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,

@@ -10,7 +10,7 @@ from src.vector_store import retrieve_relevant_chunks
 
 def build_prompt(query: str, relevant_chunks: list) -> str:
     """
-    Construct the full prompt sent to Claude.
+    Construct the full prompt sent to API (groq).
 
     Key design choices:
     1. XML tag separation: <regulations> wraps retrieved source text; <instructions>

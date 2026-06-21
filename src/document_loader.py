@@ -24,7 +24,7 @@ def load_documents(data_dir: str = DATA_DIR) -> list:
         file_path = os.path.join(data_dir, filename)
 
         if filename.endswith(".txt"):
-            # UTF-8 encoding is required for Chinese-language documents
+            # UTF-8 support non-English
             loader = TextLoader(file_path, encoding="utf-8")
             docs = loader.load()
             documents.extend(docs)
