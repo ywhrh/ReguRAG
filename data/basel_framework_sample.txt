@@ -1,0 +1,149 @@
+[SAMPLE FILE - FOR DEMONSTRATION ONLY]
+This document is a simplified reference summary based on publicly available Basel III framework
+documents published by the Basel Committee on Banking Supervision (BCBS).
+It does not constitute an official legal document and is intended solely to demonstrate
+the ReguRAG system. For authoritative text, refer to: https://www.bis.org/bcbs/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Basel III Capital Requirements — Key Provisions (Sample)
+
+1. Minimum Capital Requirements
+
+Under the Basel III framework, banks must maintain the following minimum capital ratios
+at all times:
+
+- Common Equity Tier 1 (CET1) capital ratio: minimum 4.5% of risk-weighted assets (RWA).
+- Tier 1 capital ratio: minimum 6.0% of RWA.
+- Total capital ratio: minimum 8.0% of RWA.
+
+These minimums must be maintained on a solo basis and on a consolidated group basis.
+
+2. Capital Buffers
+
+In addition to the minimum requirements, Basel III introduced the following capital buffers,
+all of which must be met with CET1 capital:
+
+(a) Capital Conservation Buffer (CCB): 2.5% of RWA. Banks that fail to maintain this buffer
+    face automatic restrictions on earnings distributions (dividends, share buybacks,
+    and discretionary bonus payments). The restrictions are graduated — the closer a bank
+    is to the minimum requirement, the more severe the distribution constraints.
+
+(b) Countercyclical Capital Buffer (CCyB): ranges from 0% to 2.5% of RWA, set by national
+    authorities. It is activated during periods of excessive credit growth and released
+    during downturns to support lending. When a bank is subject to a positive CCyB,
+    the buffer must be met with CET1 capital; failure to maintain it triggers the same
+    distribution restrictions as the conservation buffer.
+
+(c) Global Systemically Important Bank (G-SIB) Surcharge: ranges from 1% to 3.5% of RWA,
+    determined annually by the Financial Stability Board (FSB) based on a five-category
+    assessment methodology (size, interconnectedness, substitutability, complexity,
+    and cross-jurisdictional activity). The surcharge must be met with CET1 capital.
+
+3. Capital Quality — Definition of CET1
+
+Common Equity Tier 1 capital is defined as:
+- Paid-up ordinary shares (common stock) issued by the bank.
+- Stock surplus (share premium) resulting from the issue of CET1 instruments.
+- Retained earnings.
+- Accumulated other comprehensive income (AOCI) and other disclosed reserves.
+- Common shares issued by consolidated subsidiaries and held by third parties
+  (minority interest), subject to specific recognition limits.
+- Regulatory adjustments (deductions), including goodwill, other intangible assets,
+  deferred tax assets, and certain investments in the capital of financial entities.
+
+4. Leverage Ratio
+
+Basel III introduced a non-risk-based leverage ratio as a supplementary measure to the
+risk-based capital framework. The minimum Tier 1 leverage ratio is 3% of total exposures.
+G-SIBs are subject to an additional leverage ratio buffer equal to 50% of their G-SIB
+risk-weighted surcharge (e.g., a bank with a 2% G-SIB surcharge faces a 1% leverage
+ratio buffer, implying a minimum leverage ratio of 4%).
+
+The exposure measure includes both on-balance-sheet exposures and off-balance-sheet items
+(converted using specified credit conversion factors) and derivatives (measured using
+the Standardised Approach for Counterparty Credit Risk, SA-CCR).
+
+5. Liquidity Standards
+
+(a) Liquidity Coverage Ratio (LCR): requires banks to hold sufficient high-quality liquid
+    assets (HQLA) to cover net cash outflows over a 30-day stress period. The minimum
+    LCR is 100%. HQLA is divided into Level 1 assets (e.g., cash, central bank reserves,
+    highest-rated sovereign debt — no haircut) and Level 2 assets (subject to minimum
+    haircuts of 15% for Level 2A and 25% or more for Level 2B). Level 2 assets may
+    not exceed 40% of the total HQLA stock; Level 2B assets may not exceed 15%.
+
+(b) Net Stable Funding Ratio (NSFR): requires banks to maintain a stable funding profile
+    relative to their on- and off-balance-sheet activities. Available Stable Funding (ASF)
+    must equal or exceed Required Stable Funding (RSF), i.e., NSFR ≥ 100%.
+    The NSFR is designed to reduce funding risk over a one-year horizon.
+
+6. Large Exposures Framework
+
+Under the Basel large exposures framework:
+- A bank's exposure to a single counterparty must not exceed 25% of its Tier 1 capital.
+- Exposures between G-SIBs (to another G-SIB) must not exceed 15% of Tier 1 capital.
+- Exposures to a connected group of counterparties are aggregated and subject to the same
+  25% limit applied to the consolidated group.
+
+Banks must identify and aggregate all exposures to the same counterparty regardless of
+the legal form, including loans, bonds, derivatives, off-balance-sheet commitments,
+and eligible netting sets.
+
+7. Disclosure Requirements (Pillar 3)
+
+Banks are required to make public disclosures covering:
+- Capital adequacy, including the breakdown of regulatory capital and RWA by risk type.
+- Risk profile and risk management framework for each material risk category.
+- Remuneration policies and practices.
+- Asset encumbrance.
+
+Disclosures must be published at least annually, with certain quantitative disclosures
+on a semi-annual or quarterly basis. G-SIBs and other large internationally active banks
+face enhanced frequency requirements. All disclosures must be published in an accessible
+location (typically the bank's investor relations website) and must be consistent with
+information used internally by management.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Basel III — Operational Risk Capital Requirements (Sample)
+
+1. Standardised Approach (SA) for Operational Risk
+
+From January 1, 2023, banks must use the Standardised Approach (SA) to calculate
+operational risk capital requirements. The SA replaces the Basic Indicator Approach,
+Standardised Approach (old), and Advanced Measurement Approach (AMA).
+
+The SA capital requirement is calculated as:
+
+  Operational Risk Capital = Business Indicator Component (BIC) × Internal Loss Multiplier (ILM)
+
+(a) Business Indicator Component (BIC):
+    The Business Indicator (BI) is based on three components:
+    - Interest, Lease and Dividend Component (ILDC)
+    - Services Component (SC)
+    - Financial Component (FC)
+
+    The BIC is derived by applying marginal coefficients to the BI in three buckets:
+    - BI ≤ €1 billion: coefficient of 12%
+    - €1 billion < BI ≤ €30 billion: coefficient of 15%
+    - BI > €30 billion: coefficient of 18%
+
+(b) Internal Loss Multiplier (ILM):
+    The ILM adjusts the BIC based on the bank's historical loss experience.
+    It is calculated as:
+      ILM = ln(exp(1) − 1 + (Loss Component / BIC)^0.8)
+    where the Loss Component equals 15× the average annual operational risk losses
+    over the past 10 years.
+
+    National supervisors may choose to set ILM = 1 for all banks in their jurisdiction,
+    thereby making the capital requirement equal to the BIC alone.
+
+2. Definition of Operational Risk Losses
+
+For the purpose of the SA, operational risk losses are defined as losses resulting from
+inadequate or failed internal processes, people, and systems, or from external events.
+This includes legal risk but excludes strategic risk and reputational risk.
+
+Losses from credit-related events, market-related events, and losses below a threshold of
+€20,000 are excluded from the loss data used to calculate the ILM.

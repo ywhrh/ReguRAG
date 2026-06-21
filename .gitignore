@@ -1,0 +1,31 @@
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+#
+.venv/
+venv/
+env/
+
+# Chroma 向量库 (too big, good to rebuild locally)
+chroma_db/
+
+# HuggingFace model cache, too big
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
