@@ -1,13 +1,3 @@
-"""
-ReguRAG 自动评估脚本
-
-对 test_set.csv 里的每道题跑一遍 RAG 流程，用 RAGAS 框架量化检索和答案质量，
-结果追加到 optimization_log.csv，方便对比每次调参前后的变化。
-
-用法：
-  python evaluate.py                     # 使用默认路径 ./test_set.csv
-  python evaluate.py --csv my_test.csv   # 指定测试集路径
-"""
 import argparse
 import csv
 import datetime
@@ -15,12 +5,12 @@ import os
 import sys
 
 import pandas as pd
-from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+from ragas.metrics.collections import faithfulness, answer_relevancy, context_precision, context_recall
 
 # 把项目根目录加入 Python 路径，让 src/ 模块能正确 import config
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import ANTHROPIC_API_KEY, RELEVANCE_THRESHOLD, VOYAGE_API_KEY
+from config import ANTHROPIC_API_KEY, RELEVANCE_THRESHOLD, VOYAGE_API_KEY, CHUNK_SIZE, CHUNK_OVERLAP, TOP_K
 from src.vector_store import load_vector_store, retrieve_relevant_chunks
 from src.qa_chain import ask
 from ragas import EvaluationDataset
@@ -31,10 +21,19 @@ from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIEmbeddings
 
 LOG_FILE = "optimization_log.csv"
+
 LOG_COLUMNS = [
-    "date", "change_made",
-    "faithfulness", "answer_relevancy", "context_precision", "context_recall",
-    "fallback_accuracy", "notes",
+    "date",
+    "chunk_size",
+    "chunk_overlap",
+    "relevance_threshold",
+    "top_k",
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall",
+    "fallback_accuracy",
+    "notes",
 ]
 
 
@@ -111,24 +110,6 @@ def collect_rag_results(vector_store, df: pd.DataFrame) -> list:
 # ── Step 3：配置 RAGAS 评估组件 ───────────────────────────────────────────────
 
 def setup_ragas_components():
-    """
-    配置 RAGAS 0.4.x 使用 Claude LLM 和本地 HuggingFace Embedding，
-    完全不依赖 OpenAI。
-
-    为什么 RAGAS 自己也需要 LLM？
-    faithfulness 等指标不是简单字符串匹配，而是用 LLM 来"判断"
-    答案里的每个声明能不能在检索到的原文里找到支撑。
-    这里用 Claude，temperature=0 让每次评估结果可复现。
-
-    RAGAS 0.4.x 使用 instructor 库做结构化输出（让 LLM 返回 Pydantic 对象）。
-    instructor.from_anthropic() 会给 Anthropic 客户端打上 patch，让它支持结构化输出。
-    """
-    print("配置 RAGAS 评估组件（Claude + instructor + 本地 Embedding）…")
-
-    # 用 instructor 给 Anthropic 客户端打 patch，使其支持返回结构化 Pydantic 对象
-    # RAGAS 内部需要这种能力来解析评估结果（比如判断某个声明是否有原文依据）
-    # anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     llm = ChatAnthropic(
         model="claude-sonnet-4-6",
         api_key=ANTHROPIC_API_KEY,
@@ -144,8 +125,6 @@ def setup_ragas_components():
     # return ragas_llm, ragas_embeddings
     return llm, embeddings
 
-
-# ── Step 4：运行 RAGAS 评估 ───────────────────────────────────────────────────
 
 def run_ragas(results: list, llm, embeddings) -> dict:
     # 过滤掉 fallback 类
@@ -263,23 +242,18 @@ def print_results(scores: dict, fallback_acc, correct: int, fb_total: int, resul
 # ── Step 7：追加调参日志 ──────────────────────────────────────────────────────
 
 def append_log(scores: dict, fallback_acc):
-    """
-    把本次评估结果追加一行到 optimization_log.csv。
-
-    每次调参（改了 chunk_size / TOP_K / RELEVANCE_THRESHOLD 等）后跑一遍评估，
-    就会多一行记录，方便横向对比哪次调参有改善。
-
-    change_made 和 notes 列请在文件里手动填写。
-    """
     row = {
         "date": datetime.date.today().isoformat(),
-        "change_made": "（请手动填写：本次做了什么改动，如 chunk_size 800→600）",
+        "chunk_size": CHUNK_SIZE,
+        "chunk_overlap": CHUNK_OVERLAP,
+        "relevance_threshold": RELEVANCE_THRESHOLD,
+        "top_k": TOP_K,
         "faithfulness": scores.get("faithfulness", ""),
         "answer_relevancy": scores.get("answer_relevancy", ""),
         "context_precision": scores.get("context_precision", ""),
         "context_recall": scores.get("context_recall", ""),
         "fallback_accuracy": round(fallback_acc, 4) if fallback_acc is not None else "",
-        "notes": "（请手动填写：备注，如遇到特殊情况）",
+        "notes": "",
     }
 
     # 文件不存在时先写表头，之后只追加数据行
@@ -328,7 +302,6 @@ def main():
     # 6. 运行 RAGAS 评估（只针对 normal / hard 类）
     scores = run_ragas(results, ragas_llm, ragas_embeddings)
 
-    # 7. 打印汇总结果
     print_results(scores, fallback_acc, correct, fb_total, results)
 
     # 8. 追加到调参日志

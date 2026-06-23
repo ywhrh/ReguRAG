@@ -1,2 +1,2 @@
-date,change_made,faithfulness,answer_relevancy,context_precision,context_recall,fallback_accuracy,notes
-2026-06-23,default config ,0.3778,0.0,0.0,0.0,0.0,""
+date,chunk_size,chunk_overlap,relevance_threshold,top_k,faithfulness,answer_relevancy,context_precision,context_recall,fallback_accuracy,notes
+2026-06-23,800,100,0.3,4,0.3611,0.0,0.0,0.0,0.0,
