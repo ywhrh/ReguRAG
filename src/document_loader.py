@@ -1,7 +1,10 @@
 import os
+
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
+from src.language.ChineseSplitter import ChineseSplitter
 
 
 def load_documents(data_dir: str = DATA_DIR) -> list:
@@ -48,22 +51,23 @@ def load_documents(data_dir: str = DATA_DIR) -> list:
 
 def split_documents(documents: list) -> list:
     """
-    Split documents into smaller chunks suitable for embedding models.
+    两阶段切分：先按"第X条"边界切，再用 RecursiveCharacterTextSplitter 处理超长条款。
 
-    Why RecursiveCharacterTextSplitter?
-    - Tries to split at semantic boundaries first: paragraphs, then newlines,
-      then punctuation — rather than cutting at a fixed character count.
-    - The separators list is tried in order; the first one that fits is used.
-    - chunk_size and chunk_overlap are centrally configured in config.py.
+    阶段1：ChineseSplitter — 保证每个 chunk 对应一个完整条款，不跨条款混入上下文。
+    阶段2：RecursiveCharacterTextSplitter — 对仍然超过 CHUNK_SIZE 的条款二次切分。
     """
+    # 阶段1：按条款边界切分
+    article_chunks = ChineseSplitter.split_documents(documents)
+    print(f"  阶段1（按条款切分）: {len(documents)} segment(s) → {len(article_chunks)} 条款")
+
+    # 阶段2：对超长条款再次切分
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,            # count by characters (correct for CJK text)
+        length_function=len,
         separators=["\n\n", "\n", "。", "；", "，", " ", ""],
     )
-
-    chunks = splitter.split_documents(documents)
+    chunks = splitter.split_documents(article_chunks)
 
     print(f"Splitting complete: {len(documents)} segment(s) → {len(chunks)} chunk(s)")
     print(f"  chunk_size={CHUNK_SIZE}, chunk_overlap={CHUNK_OVERLAP}")

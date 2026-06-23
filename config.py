@@ -12,11 +12,10 @@ CHROMA_PERSIST_DIR = "./chroma_db"  # directory for persisted vector store
 CHROMA_COLLECTION_NAME = "regurag_docs"  # collection name inside Chroma
 DATA_DIR = "./data"
 
-CHUNK_SIZE = 800
+CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 RELEVANCE_THRESHOLD = 0.3
 TOP_K = 4
-
 FALLBACK_MESSAGE = (
     "No relevant provisions were found in the current regulatory library.\n"
     "Please consult a qualified compliance professional or refer to the official sources below:\n"

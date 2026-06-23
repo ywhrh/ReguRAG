@@ -7,6 +7,8 @@ import sys
 import pandas as pd
 from ragas.metrics.collections import faithfulness, answer_relevancy, context_precision, context_recall
 
+from src.language.EnglishOnlyLLM import EnglishOnlyLLM
+
 # 把项目根目录加入 Python 路径，让 src/ 模块能正确 import config
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,7 +19,6 @@ from ragas import EvaluationDataset
 from ragas.dataset_schema import SingleTurnSample
 from ragas import evaluate
 from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
-from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIEmbeddings
 
 LOG_FILE = "optimization_log.csv"
@@ -28,6 +29,7 @@ LOG_COLUMNS = [
     "chunk_overlap",
     "relevance_threshold",
     "top_k",
+    "total_questions",
     "faithfulness",
     "answer_relevancy",
     "context_precision",
@@ -107,10 +109,8 @@ def collect_rag_results(vector_store, df: pd.DataFrame) -> list:
     return results
 
 
-# ── Step 3：配置 RAGAS 评估组件 ───────────────────────────────────────────────
-
 def setup_ragas_components():
-    llm = ChatAnthropic(
+    llm = EnglishOnlyLLM(
         model="claude-sonnet-4-6",
         api_key=ANTHROPIC_API_KEY,
     )
@@ -119,7 +119,7 @@ def setup_ragas_components():
     embeddings = VoyageAIEmbeddings(
         voyage_api_key=VOYAGE_API_KEY,
         model="voyage-3",  # 通用场景
-        # model="voyage-finance-2" # 金融场景专用，你可能用得上
+        # model="voyage-finance-2" # 金融场景专用
     )
 
     # return ragas_llm, ragas_embeddings
@@ -159,6 +159,8 @@ def run_ragas(results: list, llm, embeddings) -> dict:
 
     # EvaluationResult 不支持 .get()，转成 DataFrame 后对每列取均值
     result_df = ragas_result.to_pandas()
+    print("\n[DEBUG] 每题分数明细：")
+    print(result_df[["faithfulness", "answer_relevancy", "context_precision", "context_recall"]].to_string())
     scores: dict[str, float] = {}
     for key in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
         if key in result_df.columns:
@@ -229,25 +231,26 @@ def print_results(scores: dict, fallback_acc, correct: int, fb_total: int, resul
         print("  测试集中无 fallback 类，跳过。")
 
     # ── 逐题明细（调试用）──
-    print("\n  ▌ 逐题明细\n")
-    print(f"  {'类型':<8}  {'相关度':>6}  {'兜底':^4}  问题")
-    print("  " + "-" * 56)
-    for r in results:
-        marker = "✓ 是" if r["is_fallback"] else "✗ 否"
-        print(f"  {r['type']:<8}  {r['max_score']:>6.3f}  {marker:^4}  {r['question'][:35]}")
-
-    print("\n" + "=" * 62)
+    # print("\n  ▌ 逐题明细\n")
+    # print(f"  {'类型':<8}  {'相关度':>6}  {'兜底':^4}  问题")
+    # print("  " + "-" * 56)
+    # for r in results:
+    #     marker = "✓ 是" if r["is_fallback"] else "✗ 否"
+    #     print(f"  {r['type']:<8}  {r['max_score']:>6.3f}  {marker:^4}  {r['question'][:35]}")
+    #
+    # print("\n" + "=" * 62)
 
 
 # ── Step 7：追加调参日志 ──────────────────────────────────────────────────────
 
-def append_log(scores: dict, fallback_acc):
+def append_log(scores: dict, fallback_acc, total_questions: int):
     row = {
         "date": datetime.date.today().isoformat(),
         "chunk_size": CHUNK_SIZE,
         "chunk_overlap": CHUNK_OVERLAP,
         "relevance_threshold": RELEVANCE_THRESHOLD,
         "top_k": TOP_K,
+        "total_questions": total_questions,
         "faithfulness": scores.get("faithfulness", ""),
         "answer_relevancy": scores.get("answer_relevancy", ""),
         "context_precision": scores.get("context_precision", ""),
@@ -256,7 +259,15 @@ def append_log(scores: dict, fallback_acc):
         "notes": "",
     }
 
-    # 文件不存在时先写表头，之后只追加数据行
+    # 如果日志已存在但列定义与代码不一致，备份旧文件并新建
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            existing_columns = f.readline().strip().split(",")
+        if existing_columns != LOG_COLUMNS:
+            backup = LOG_FILE.replace(".csv", f"_backup_{datetime.date.today().isoformat()}.csv")
+            os.rename(LOG_FILE, backup)
+            print(f"列定义已变更，旧日志已备份为 {backup}，创建新日志。")
+
     write_header = not os.path.exists(LOG_FILE)
     with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=LOG_COLUMNS)
@@ -273,7 +284,7 @@ def append_log(scores: dict, fallback_acc):
 def main():
     parser = argparse.ArgumentParser(description="ReguRAG 自动评估")
     parser.add_argument(
-        "--csv", default="src/test/test_set_small.csv",
+        "--csv", default="src/test/test_set.csv",
         help="测试集路径（默认 ./test_set.csv）"
     )
     args = parser.parse_args()
@@ -305,7 +316,7 @@ def main():
     print_results(scores, fallback_acc, correct, fb_total, results)
 
     # 8. 追加到调参日志
-    append_log(scores, fallback_acc)
+    append_log(scores, fallback_acc, len(df))
 
 
 if __name__ == "__main__":
