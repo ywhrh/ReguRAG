@@ -14,6 +14,7 @@
 - [架构与工作流程](#架构与工作流程)
 - [快速开始](#快速开始)
 - [网页界面使用方法](#网页界面使用方法)
+- [如何运行自动评估](#如何运行自动评估)
 - [项目结构](#项目结构)
 - [数据来源](#数据来源)
 - [配置说明](#配置说明)
@@ -262,16 +263,82 @@ Local URL: http://localhost:8501
 
 ---
 
+## 如何运行自动评估
+
+### 1. 准备测试集
+
+在项目根目录创建 `test_set.csv`，每行一道题：
+
+| id | question | gold_answer | source_clause | type | notes |
+|----|----------|-------------|---------------|------|-------|
+| 1 | 核心一级资本充足率最低要求是多少？ | 不低于5% | 第X条第Y款 | normal | |
+| 2 | 今天上证指数是多少？ | （无） | （无） | fallback | 应触发兜底 |
+| 3 | LCR 最低要求的计算方式？ | 100%，分子为HQLA | 第Z条 | hard | 措辞较复杂 |
+
+`type` 取值说明：
+- `normal`：文档里有明确答案的普通问题
+- `hard`：文档里有答案但措辞复杂、检索较难的问题
+- `fallback`：文档里**没有**答案的问题，系统应触发兜底、拒绝回答
+
+### 2. 运行评估
+
+```bash
+python evaluate.py                     # 读取默认 ./test_set.csv
+python evaluate.py --csv path/to.csv   # 指定其他路径
+```
+
+首次运行会下载/加载 embedding 模型，RAGAS 评估阶段会多次调用 Groq API（每道题约 4-8 次），整体耗时约 2-5 分钟。
+
+### 3. 解读结果
+
+**终端输出示例：**
+
+```
+▌ RAGAS 指标（normal + hard 类，范围 0-1，越高越好）
+
+  忠实度（防幻觉）    0.8750  [█████████████████░░░]
+  答案相关性          0.9120  [██████████████████░░]
+  检索精准度          0.7500  [███████████████░░░░░]
+  检索召回率          0.6800  [█████████████░░░░░░░]
+
+▌ 兜底正确率（fallback 类）
+
+  100.00%（2/2 条正确触发兜底）
+```
+
+**各指标的理想值和调优方向：**
+
+| 指标 | 理想值 | 偏低时怎么调 |
+|------|--------|-------------|
+| faithfulness（忠实度） | > 0.85 | 加强 Prompt 的约束语；减少检索片段数量 |
+| answer_relevancy（答案相关性） | > 0.85 | 优化 Prompt 的问答格式要求 |
+| context_precision（检索精准度） | > 0.75 | 调高 `RELEVANCE_THRESHOLD`；减小 `TOP_K` |
+| context_recall（检索召回率） | > 0.75 | 增大 `TOP_K`；减小 `CHUNK_SIZE` 让切分更细 |
+| fallback_accuracy（兜底正确率） | 1.0 | 调高 `RELEVANCE_THRESHOLD`（如 0.3 → 0.4） |
+
+**调参工作流：**
+
+1. 在 `config.py` 里改一个参数（如 `CHUNK_SIZE = 600`）
+2. 重新建库：`python main.py build`
+3. 重新评估：`python evaluate.py`
+4. 对比 `optimization_log.csv` 里新旧两行的分数
+5. 手动填写 `change_made` 和 `notes` 列，记录本次改了什么
+
+---
+
 ## 项目结构
 
 ```
 ReguRAG/
 ├── main.py                    # CLI 入口：build（建库）/ ask（问答）
 ├── app.py                     # Streamlit 网页界面入口（streamlit run app.py）
+├── evaluate.py                # 自动评估脚本（python evaluate.py）
 ├── config.py                  # 集中配置：模型、阈值、路径、切分参数等
 ├── requirements.txt           # Python 依赖
 ├── .env.example               # API Key 配置模板
 ├── .gitignore
+├── test_set.csv               # 评估测试集（自行准备，格式见 README）
+├── optimization_log.csv       # 调参日志（evaluate.py 自动追加）
 │
 ├── src/
 │   ├── __init__.py
@@ -346,7 +413,7 @@ ReguRAG/
 ## Roadmap
 
 - [ ] **多轮对话支持**：记录对话历史，支持追问（"那它的计算方式呢？"）
-- [ ] **评估体系**：引入 RAGAS 或自定义指标，量化检索召回率和答案忠实度
+- [x] **评估体系**：引入 RAGAS，量化 faithfulness / answer_relevancy / context_precision / context_recall（`evaluate.py`）
 - [ ] **混合检索**：结合关键词检索（BM25）与向量检索，提升在专有名词（如"NSFR"）上的召回率
 - [ ] **文档来源管理**：支持按监管机构、生效日期、法规类型筛选检索范围
 - [ ] **增量建库**：新增文档时只更新新文档对应的向量，无需全量重建

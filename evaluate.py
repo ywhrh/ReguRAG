@@ -8,51 +8,28 @@ ReguRAG 自动评估脚本
   python evaluate.py                     # 使用默认路径 ./test_set.csv
   python evaluate.py --csv my_test.csv   # 指定测试集路径
 """
-import sys
-import os
+import argparse
 import csv
 import datetime
-import argparse
+import os
+import sys
 
 import pandas as pd
-from ragas.metrics._context_precision import LLMContextPrecisionWithoutReference
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
 
 # 把项目根目录加入 Python 路径，让 src/ 模块能正确 import config
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, EMBEDDING_MODEL, RELEVANCE_THRESHOLD
+from config import ANTHROPIC_API_KEY, RELEVANCE_THRESHOLD, VOYAGE_API_KEY
 from src.vector_store import load_vector_store, retrieve_relevant_chunks
 from src.qa_chain import ask
-
-# ── RAGAS 框架（0.4.x API）────────────────────────────────────────────────────
-# RAGAS 是专门用来量化评估 RAG 系统效果的开源框架
 from ragas import EvaluationDataset
 from ragas.dataset_schema import SingleTurnSample
 from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+from langchain_anthropic import ChatAnthropic
+from langchain_voyageai import VoyageAIEmbeddings
 
-from ragas.metrics import (
-    Faithfulness,
-    AnswerRelevancy,
-    ContextPrecision,
-    ContextRecall,
-)
-from ragas.llms.base import InstructorLLM          # 这个路径没变，保持不动
-from ragas.embeddings import HuggingFaceEmbeddings  # 不需要改名，直接用
-
-
-# RAGAS 0.4.x 的 LLM 封装：InstructorLLM 使用 instructor 库做结构化输出
-from ragas.llms.base import InstructorLLM
-
-# RAGAS 0.4.x 内置的 HuggingFace 本地 Embedding 封装（不需要 LangChain 中转）
-from ragas.embeddings import HuggingFaceEmbeddings as RagasHFEmbeddings
-
-# instructor 库：把 LLM SDK 扩展成能返回结构化 Pydantic 对象的工具
-# RAGAS 内部用它来解析评估结果，无需手动处理
-import instructor
-import anthropic
-
-
-# 调参日志文件路径和列名
 LOG_FILE = "optimization_log.csv"
 LOG_COLUMNS = [
     "date", "change_made",
@@ -119,13 +96,13 @@ def collect_rag_results(vector_store, df: pd.DataFrame) -> list:
         qa = ask(vector_store, question)
 
         results.append({
-            "question":    question,
+            "question": question,
             "gold_answer": gold,
-            "contexts":    contexts,
-            "answer":      qa["answer"],
+            "contexts": contexts,
+            "answer": qa["answer"],
             "is_fallback": qa["is_fallback"],
-            "max_score":   max_score,
-            "type":        q_type,
+            "max_score": max_score,
+            "type": q_type,
         })
 
     return results
@@ -150,30 +127,27 @@ def setup_ragas_components():
 
     # 用 instructor 给 Anthropic 客户端打 patch，使其支持返回结构化 Pydantic 对象
     # RAGAS 内部需要这种能力来解析评估结果（比如判断某个声明是否有原文依据）
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    instructor_client = instructor.from_anthropic(anthropic_client)
+    # anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # 包装成 RAGAS 的 InstructorLLM，temperature=0 保证评估结果稳定可复现
-    ragas_llm = InstructorLLM(
-        client=instructor_client,
-        model=CLAUDE_MODEL,
-        provider="anthropic",
-        temperature=0,
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-6",
+        api_key=ANTHROPIC_API_KEY,
     )
 
-    # RAGAS 自带的本地 HuggingFace Embedding 封装，不需要 LangChain 中转
-    # AnswerRelevancy 用 embedding 来计算问题和答案的语义相似度
-    ragas_embeddings = HuggingFaceEmbeddings(
-        model=EMBEDDING_MODEL,
-        device="cpu",
-        normalize_embeddings=True,
+    # Embedding 用 Voyage（Anthropic 官方合作）
+    embeddings = VoyageAIEmbeddings(
+        voyage_api_key=VOYAGE_API_KEY,
+        model="voyage-3",  # 通用场景
+        # model="voyage-finance-2" # 金融场景专用，你可能用得上
     )
-    return ragas_llm, ragas_embeddings
+
+    # return ragas_llm, ragas_embeddings
+    return llm, embeddings
 
 
 # ── Step 4：运行 RAGAS 评估 ───────────────────────────────────────────────────
 
-def run_ragas(results: list, ragas_llm, ragas_embeddings) -> dict:
+def run_ragas(results: list, llm, embeddings) -> dict:
     # 过滤掉 fallback 类
     filtered = [r for r in results if r["type"] != "fallback"]
     if not filtered:
@@ -188,39 +162,21 @@ def run_ragas(results: list, ragas_llm, ragas_embeddings) -> dict:
         contexts = r["contexts"] if r["contexts"] else ["（无相关片段通过阈值）"]
         samples.append(SingleTurnSample(
             user_input=r["question"],
-            retrieved_contexts=contexts,   # 检索到的法规片段全文列表
-            response=r["answer"],           # 系统生成的答案
-            reference=r["gold_answer"],     # 标准答案（context_recall 需要）
+            retrieved_contexts=contexts,  # 检索到的法规片段全文列表
+            response=r["answer"],  # 系统生成的答案
+            reference=r["gold_answer"],  # 标准答案（context_recall 需要）
         ))
 
     dataset = EvaluationDataset(samples=samples)
 
-    # 实例化四个指标，注入 Groq LLM 和本地 Embedding
-    # metrics = [
-    #     Faithfulness(llm=ragas_llm),
-    #     AnswerRelevancy(llm=ragas_llm, embeddings=ragas_embeddings),
-    #     ContextPrecision(llm=ragas_llm),
-    #     ContextRecall(llm=ragas_llm),
-    # ]
-
-    metrics = [
-        Faithfulness(llm=ragas_llm),
-        AnswerRelevancy(llm=ragas_llm, embeddings=ragas_embeddings),
-        LLMContextPrecisionWithoutReference(llm=ragas_llm),  # 不需要 ground_truth
-        ContextRecall(llm=ragas_llm),
-    ]
-
-
     print(f"\n运行 RAGAS 评估（{len(samples)} 道题，每题多次 API 调用，预计 1-5 分钟）…")
-    # RAGAS 0.4+ 推荐直接在 dataset 上调用 evaluate，而非顶层 evaluate()
-    # ragas_result = dataset.evaluate(metrics=metrics)
+
     ragas_result = evaluate(
         dataset=dataset,
-        metrics=metrics,
-        llm=ragas_llm,
-        embeddings=ragas_embeddings,
+        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
+        llm=llm,
+        embeddings=embeddings,
     )
-
 
     # EvaluationResult 不支持 .get()，转成 DataFrame 后对每列取均值
     result_df = ragas_result.to_pandas()
@@ -274,10 +230,10 @@ def print_results(scores: dict, fallback_acc, correct: int, fb_total: int, resul
     # ── RAGAS 指标 ──
     print("\n  ▌ RAGAS 指标（normal + hard 类，范围 0-1，越高越好）\n")
     labels = {
-        "faithfulness":      "忠实度（防幻觉）",
-        "answer_relevancy":  "答案相关性      ",
+        "faithfulness": "忠实度（防幻觉）",
+        "answer_relevancy": "答案相关性      ",
         "context_precision": "检索精准度      ",
-        "context_recall":    "检索召回率      ",
+        "context_recall": "检索召回率      ",
     }
     for key, label in labels.items():
         val = scores.get(key)
@@ -316,14 +272,14 @@ def append_log(scores: dict, fallback_acc):
     change_made 和 notes 列请在文件里手动填写。
     """
     row = {
-        "date":              datetime.date.today().isoformat(),
-        "change_made":       "（请手动填写：本次做了什么改动，如 chunk_size 800→600）",
-        "faithfulness":      scores.get("faithfulness", ""),
-        "answer_relevancy":  scores.get("answer_relevancy", ""),
+        "date": datetime.date.today().isoformat(),
+        "change_made": "（请手动填写：本次做了什么改动，如 chunk_size 800→600）",
+        "faithfulness": scores.get("faithfulness", ""),
+        "answer_relevancy": scores.get("answer_relevancy", ""),
         "context_precision": scores.get("context_precision", ""),
-        "context_recall":    scores.get("context_recall", ""),
+        "context_recall": scores.get("context_recall", ""),
         "fallback_accuracy": round(fallback_acc, 4) if fallback_acc is not None else "",
-        "notes":             "（请手动填写：备注，如遇到特殊情况）",
+        "notes": "（请手动填写：备注，如遇到特殊情况）",
     }
 
     # 文件不存在时先写表头，之后只追加数据行

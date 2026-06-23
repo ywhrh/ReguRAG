@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load env vars from .env before any os.getenv calls
@@ -8,7 +9,8 @@ load_dotenv()
 # Anthropic API
 # ──────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-CLAUDE_MODEL = "claude-opus-4-8"        # model used for final answer generation
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
+CLAUDE_MODEL = "claude-opus-4-8"  # model used for final answer generation
 
 # ──────────────────────────────────────────────
 # Local embedding model (multilingual, no API cost)
@@ -23,10 +25,10 @@ EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 # ──────────────────────────────────────────────
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
-CHROMA_PERSIST_DIR = "./chroma_db"          # directory for persisted vector store
-CHROMA_COLLECTION_NAME = "regurag_docs"    # collection name inside Chroma
+CHROMA_PERSIST_DIR = "./chroma_db"  # directory for persisted vector store
+CHROMA_COLLECTION_NAME = "regurag_docs"  # collection name inside Chroma
 DATA_DIR = "./data"
-TOP_K = 4                                   # number of top chunks to retrieve per query
+TOP_K = 4  # number of top chunks to retrieve per query
 
 # Anti-hallucination relevance threshold (0–1, higher = stricter)
 # If the best retrieved chunk scores below this, the LLM is never called.

@@ -1,7 +1,7 @@
-from groq import Groq
+import anthropic
 from config import (
-    GROQ_API_KEY,
-    GROQ_MODEL,
+    ANTHROPIC_API_KEY,
+    CLAUDE_MODEL,
     RELEVANCE_THRESHOLD,
     FALLBACK_MESSAGE,
 )
@@ -96,17 +96,17 @@ def ask(vector_store, query: str) -> dict:
     # ── Step 3: build prompt ──────────────────────────────────────────
     prompt = build_prompt(query, relevant_chunks)
 
-    # ── Step 4: call Groq to generate the answer ─────────────────────
-    print("Calling Groq...")
-    client = Groq(api_key=GROQ_API_KEY)
+    # ── Step 4: call Claude to generate the answer ────────────────────
+    print("Calling Claude...")
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    completion = client.chat.completions.create(
-        model=GROQ_MODEL,
+    message = client.messages.create(
+        model=CLAUDE_MODEL,
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    answer = completion.choices[0].message.content
+    answer = message.content[0].text
 
     # ── Step 5: collect source metadata for display / logging ─────────
     sources = []
