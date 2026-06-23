@@ -11,7 +11,7 @@ import os
 # Add the project root to sys.path so that src/ modules can import config
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import GROQ_API_KEY, DATA_DIR
+from config import ANTHROPIC_API_KEY, DATA_DIR
 from src.document_loader import load_documents, split_documents
 from src.vector_store import build_vector_store, load_vector_store
 from src.qa_chain import ask
@@ -19,11 +19,11 @@ from src.qa_chain import ask
 
 def check_api_key():
     """Fail fast if the API key is missing, rather than crashing mid-session."""
-    if not GROQ_API_KEY:
-        print("Error: GROQ_API_KEY is not set.")
+    if not ANTHROPIC_API_KEY:
+        print("Error: ANTHROPIC_API_KEY is not set.")
         print("Create a .env file in the project root containing:")
-        print("  GROQ_API_KEY=your_key_here")
-        print("Get a free key at: https://console.groq.com/keys")
+        print("  ANTHROPIC_API_KEY=your_key_here")
+        print("Get a key at: https://console.anthropic.com/keys")
         sys.exit(1)
 
 

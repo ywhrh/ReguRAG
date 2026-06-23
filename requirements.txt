@@ -1,0 +1,35 @@
+# LangChain 核心与社区扩展
+langchain>=1.3.0
+langchain-community>=0.4.0
+
+# Anthropic Claude API
+anthropic>=0.40.0
+
+# Chroma 向量库集成
+langchain-chroma>=1.1.0
+chromadb>=0.5.0
+
+# 本地 Embedding 模型（HuggingFace sentence-transformers）
+langchain-huggingface>=1.0.0
+# sentence-transformers 3.x 需要 torch>=2.4，该版本在部分平台（如 Intel Mac）不可用，
+# 因此固定在 2.x 分支，同时锁定兼容的 numpy 和 transformers 版本。
+sentence-transformers>=2.7.0,<3.0.0
+transformers>=4.35.0,<5.0.0
+numpy>=1.24.0,<2.0.0
+
+# PDF 文档加载
+pypdf>=4.0.0
+
+# 文本切分
+langchain-text-splitters>=1.1.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# 网页界面
+streamlit>=1.35.0
+
+# 自动评估
+ragas>=0.4.0               # RAG 质量评估框架（0.4.x API）
+pandas>=2.0.0              # 读取测试集 CSV
+# 注：instructor（ragas 依赖）已随 ragas 自动安装，无需单独列出

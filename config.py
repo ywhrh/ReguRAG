@@ -5,11 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ──────────────────────────────────────────────
-# Groq API
+# Anthropic API
 # ──────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# Free models available at console.groq.com — llama-3.3-70b-versatile is the best free option
-GROQ_MODEL = "llama-3.3-70b-versatile"     # model used for final answer generation
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = "claude-opus-4-8"        # model used for final answer generation
 
 # ──────────────────────────────────────────────
 # Local embedding model (multilingual, no API cost)
@@ -24,21 +23,9 @@ EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 # ──────────────────────────────────────────────
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
-
-# ──────────────────────────────────────────────
-# Chroma vector store
-# ──────────────────────────────────────────────
 CHROMA_PERSIST_DIR = "./chroma_db"          # directory for persisted vector store
 CHROMA_COLLECTION_NAME = "regurag_docs"    # collection name inside Chroma
-
-# ──────────────────────────────────────────────
-# Data directory
-# ──────────────────────────────────────────────
 DATA_DIR = "./data"
-
-# ──────────────────────────────────────────────
-# Retrieval parameters
-# ──────────────────────────────────────────────
 TOP_K = 4                                   # number of top chunks to retrieve per query
 
 # Anti-hallucination relevance threshold (0–1, higher = stricter)
