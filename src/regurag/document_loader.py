@@ -3,8 +3,8 @@ import os
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
-from src.language.ChineseSplitter import ChineseSplitter
+from regurag.config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
+from regurag.parser.chinese_splitter import ChineseSplitter
 
 
 def load_documents(data_dir: str = DATA_DIR) -> list:
@@ -51,16 +51,13 @@ def load_documents(data_dir: str = DATA_DIR) -> list:
 
 def split_documents(documents: list) -> list:
     """
-    两阶段切分：先按"第X条"边界切，再用 RecursiveCharacterTextSplitter 处理超长条款。
-
-    阶段1：ChineseSplitter — 保证每个 chunk 对应一个完整条款，不跨条款混入上下文。
-    阶段2：RecursiveCharacterTextSplitter — 对仍然超过 CHUNK_SIZE 的条款二次切分。
+    Split in two stages:
+    1. Split Chinese regulations by article boundary where possible.
+    2. Split long articles again with RecursiveCharacterTextSplitter.
     """
-    # 阶段1：按条款边界切分
     article_chunks = ChineseSplitter.split_documents(documents)
-    print(f"  阶段1（按条款切分）: {len(documents)} segment(s) → {len(article_chunks)} 条款")
+    print(f"  Article split: {len(documents)} segment(s) -> {len(article_chunks)} article(s)")
 
-    # 阶段2：对超长条款再次切分
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,

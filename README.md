@@ -1,432 +1,150 @@
 # ReguRAG
 
-> 面向金融监管合规场景的法规问答助手——检索增强生成（RAG），每条答案均可追溯至原文，并内置防幻觉机制。
+ReguRAG is a retrieval-augmented generation system for financial regulatory Q&A. It loads local regulatory documents, builds a Chroma vector index, retrieves relevant passages for each question, and asks Claude to answer only from those passages.
 
-**English summary:** ReguRAG is a Retrieval-Augmented Generation (RAG) system for financial regulatory Q&A. It retrieves relevant clauses from a local regulatory document library, cites the exact source passages in every answer, and refuses to generate answers when retrieved content falls below a relevance threshold — preventing hallucination in a domain where errors carry real legal risk.
+The project is designed for compliance-style workflows where traceability matters. Answers include source passages, and low-relevance questions are blocked before the LLM call to reduce unsupported answers.
 
----
+## Features
 
-## 目录
+- Source-grounded answers with retrieved passage citations.
+- Relevance threshold guardrail before answer generation.
+- Local multilingual embeddings with `sentence-transformers`.
+- Chroma persistence for local development.
+- Streamlit UI for manual testing.
+- RAGAS-based evaluation script for retrieval and answer quality checks.
 
-- [项目简介](#项目简介)
-- [功能特性](#功能特性)
-- [技术栈](#技术栈)
-- [架构与工作流程](#架构与工作流程)
-- [快速开始](#快速开始)
-- [网页界面使用方法](#网页界面使用方法)
-- [如何运行自动评估](#如何运行自动评估)
-- [项目结构](#项目结构)
-- [数据来源](#数据来源)
-- [配置说明](#配置说明)
-- [设计思路](#设计思路)
-- [Roadmap](#roadmap)
+## Project Layout
 
----
-
-## 项目简介
-
-ReguRAG 是一个专为**金融监管/合规场景**设计的法规问答助手。它将本地法规 PDF/TXT 文档向量化存储，用户提问后自动检索最相关的法规片段，拼入结构化 Prompt 后交由 Claude 生成答案，并在回答中附带**可核对的法规原文出处**。
-
-**核心出发点**：在合规场景下，一个答错的条款可能带来监管处罚甚至法律责任。因此本项目的优先级不是"尽量回答"，而是"**答对比答快更重要，不确定时明确说不知道**"。
-
----
-
-## 功能特性
-
-- **答案完全可溯源**：每条回答都附带所依据的法规片段、来源文件名及相关度分数，用户可直接核对原文。
-- **防幻觉兜底机制**：检索到的内容相关度低于阈值时，系统拒绝调用 Claude，直接返回固定提示语，彻底避免模型"瞎编"。
-- **数据/指令分离**：Prompt 中用 XML 标签严格区分法规原文区（`<regulations>`）和行为约束区（`<instructions>`），防止数据内容干扰模型行为。
-- **零成本 Embedding**：使用本地开源多语言模型（sentence-transformers），向量化阶段完全不消耗 API，支持中英文法规混合场景。
-- **参数集中配置**：切分参数、相关度阈值、模型名称等均在 `config.py` 一处管理，便于调优实验。
-- **支持 PDF 和 TXT**：直接加载监管机构发布的 PDF 格式法规文件，无需手动转换。
-
----
-
-## 技术栈
-
-| 层级 | 技术选型 | 说明 |
-|------|----------|------|
-| 文档加载 | LangChain (`TextLoader`, `PyPDFLoader`) | 支持 .txt / .pdf |
-| 文本切分 | `RecursiveCharacterTextSplitter` | 优先在段落/句子边界切分 |
-| Embedding | `paraphrase-multilingual-MiniLM-L12-v2` | 本地运行，支持中英文，无 API 费用 |
-| 向量库 | Chroma（本地持久化） | 轻量，无需外部服务，适合本地开发 |
-| 答案生成 | Llama 3.3 70B via Groq API（免费） | 仅用于最终回答生成 |
-| 编排框架 | LangChain | 统一接口，便于后续替换组件 |
-| 网页界面 | Streamlit | 本地浏览器调试界面，单页极简 |
-| 运行环境 | Python 3.12 | |
-
----
-
-## 架构与工作流程
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         建库阶段（一次性）                         │
-│                                                                   │
-│  data/*.pdf / *.txt                                               │
-│        │                                                          │
-│        ▼                                                          │
-│  [文档加载]  TextLoader / PyPDFLoader                             │
-│        │                                                          │
-│        ▼                                                          │
-│  [文本切分]  RecursiveCharacterTextSplitter                       │
-│             chunk_size=800, overlap=100                           │
-│        │                                                          │
-│        ▼                                                          │
-│  [向量化]   paraphrase-multilingual-MiniLM-L12-v2（本地）         │
-│        │                                                          │
-│        ▼                                                          │
-│  [写入 Chroma]  持久化到 chroma_db/                               │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                       问答阶段（每次提问）                          │
-│                                                                   │
-│  用户输入问题                                                       │
-│        │                                                          │
-│        ▼                                                          │
-│  [向量检索]  从 Chroma 检索 Top-K 相关片段（返回片段 + 相关度分数）  │
-│        │                                                          │
-│        ▼                                                          │
-│  [阈值判断]  最高分 < 0.3 ？                                        │
-│        │         │                                                │
-│        │      YES ▼                                               │
-│        │    返回兜底消息（不调用 Claude，彻底防幻觉）               │
-│        │                                                          │
-│      NO ▼                                                         │
-│  [Prompt 拼接]  法规原文用 <regulations> 包裹，                    │
-│                行为约束用 <instructions> 包裹                      │
-│        │                                                          │
-│        ▼                                                          │
-│  [Claude API]  生成答案（含片段引用编号）                           │
-│        │                                                          │
-│        ▼                                                          │
-│  输出答案 + 参考来源（文件名、相关度、内容预览）                     │
-└─────────────────────────────────────────────────────────────────┘
+```text
+ReguRAG/
+├── Dockerfile
+├── pyproject.toml
+├── requirements.txt
+├── requirements-eval.txt
+├── README.md
+├── .env.example
+├── data/                  # local regulatory source files
+├── tests/
+│   ├── eval/              # evaluation CSVs
+│   └── smoke/             # small manual checks
+└── src/
+    └── regurag/
+        ├── app.py         # Streamlit UI
+        ├── config.py
+        ├── document_loader.py
+        ├── evaluate.py
+        ├── main.py        # CLI entry point
+        ├── qa_chain.py
+        ├── vector_store.py
+        └── parser/
 ```
 
----
+Generated/local files such as `.env`, `chroma_db/`, `eval_cache.json`, `optimization_log.csv`, virtual environments, and IDE files are ignored.
 
-## 快速开始
-
-### 1. 环境准备
+## Setup
 
 ```bash
-# 克隆项目
-git clone https://github.com/your-username/ReguRAG.git
-cd ReguRAG
-
-# 创建并激活虚拟环境（Python 3.10+ 均可）
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-```
-
-### 2. 安装依赖
-
-```bash
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **注意**：`sentence-transformers` 首次运行会从 HuggingFace 下载约 400MB 的模型文件并缓存到本地，之后无需重复下载。
-
-### 3. 配置 API Key
+Create a local `.env` file:
 
 ```bash
-# 复制模板
 cp .env.example .env
-
-# 编辑 .env，填入你的 Groq API Key
-# 免费申请地址：https://console.groq.com/keys
 ```
 
-`.env` 文件内容如下：
+Then add:
 
-```
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxx
-```
-
-### 4. 准备法规文档
-
-项目 `data/` 目录已附带两个示例文件供快速验证：
-
-```
-data/
-├── china_banking_regulation_sample.txt   # 中文示例：商业银行资本与流动性监管要点
-└── basel_framework_sample.txt            # 英文示例：Basel III 框架核心规定
+```text
+ANTHROPIC_API_KEY=your_key_here
 ```
 
-如需加载真实法规文档，将 `.pdf` 或 `.txt` 文件放入 `data/` 目录后重新运行建库命令即可。
+The embedding model downloads from Hugging Face on first use and is cached locally afterward.
 
-### 5. 建立向量库
+## Build The Index
+
+Place `.pdf` or `.txt` regulatory files under `data/`, then run:
 
 ```bash
-python main.py build
+PYTHONPATH=src python -m regurag.main build
 ```
 
-预期输出：
+This creates `chroma_db/`.
 
-```
-[1/3] 加载文档（来源目录：./data/）
-  [OK] 已加载 txt：basel_framework_sample.txt（1 段）
-  [OK] 已加载 txt：china_banking_regulation_sample.txt（1 段）
-
-[2/3] 切分文本块
-文本切分完成：2 段 → 23 个 chunk
-
-[3/3] 向量化并写入 Chroma
-...
-向量库构建完成：共 23 条记录，已持久化到 ./chroma_db/
-
-建库完成！运行以下命令开始提问：
-  python main.py ask
-```
-
-### 6. 开始提问
+## Ask From The CLI
 
 ```bash
-python main.py ask
+PYTHONPATH=src python -m regurag.main ask
 ```
 
-**示例问答（中文）**：
-
-```
-请输入您的问题：商业银行的核心一级资本充足率最低要求是多少？
-
-【答案】
-根据【片段1】，商业银行核心一级资本充足率不得低于 5%。在此基础上，
-还须计提 2.5% 的储备资本，系统重要性银行须额外计提附加资本。
-
-【参考来源】
-  ▸ 片段 1（相关度 0.821）
-    文件：data/china_banking_regulation_sample.txt
-    内容：根据《商业银行资本管理办法》相关规定，商业银行应当持续满足以下资本充足率监管要求：
-    1. 核心一级资本充足率不得低于 5%...
-```
-
-**示例问答（英文）**：
-
-```
-请输入您的问题：What is the minimum LCR requirement under Basel III?
-
-【答案】
-According to [Fragment 1], the minimum Liquidity Coverage Ratio (LCR) under Basel III
-is 100%. Banks must hold sufficient high-quality liquid assets (HQLA) to cover net
-cash outflows over a 30-day stress period...
-```
-
-**示例兜底（无关问题）**：
-
-```
-请输入您的问题：今天股市行情怎么样？
-
-最高相关度：0.041（阈值：0.3）
-相关度低于阈值，触发兜底逻辑，不调用 Claude
-
-【答案】
-未在现有法规库中找到与您问题相关的依据。
-建议您咨询专业合规人员，或直接查阅以下官方来源：...
-```
-
----
-
-## 网页界面使用方法
-
-除命令行外，项目提供了一个基于 Streamlit 的浏览器界面，方便本地调试时不用每次敲命令。
-
-### 前提
-
-先完成"快速开始"中的**建库步骤**（`python main.py build`），向量库建好后才能启动界面。
-
-### 启动命令
+## Run The Web UI
 
 ```bash
-streamlit run app.py
+PYTHONPATH=src streamlit run src/regurag/app.py
 ```
 
-### 访问地址
+Open `http://localhost:8501`.
 
-启动成功后，终端会显示：
+## Docker
 
-```
-Local URL: http://localhost:8501
-```
-
-在浏览器打开 **http://localhost:8501** 即可使用。
-
-### 界面功能
-
-- **输入框**：输入问题（中英文均可）
-- **提问按钮**：触发检索和 LLM 调用
-- **答案区**：显示 LLM 生成的回答
-- **引用来源区**：展示每条答案所依据的法规原文片段、来源文件、相关度分数，可点击展开核对
-- **兜底提示**：相关度不足时，显示橙色警告，说明 LLM 未被调用
-
----
-
-## 如何运行自动评估
-
-### 1. 准备测试集
-
-在项目根目录创建 `test_set.csv`，每行一道题：
-
-| id | question | gold_answer | source_clause | type | notes |
-|----|----------|-------------|---------------|------|-------|
-| 1 | 核心一级资本充足率最低要求是多少？ | 不低于5% | 第X条第Y款 | normal | |
-| 2 | 今天上证指数是多少？ | （无） | （无） | fallback | 应触发兜底 |
-| 3 | LCR 最低要求的计算方式？ | 100%，分子为HQLA | 第Z条 | hard | 措辞较复杂 |
-
-`type` 取值说明：
-- `normal`：文档里有明确答案的普通问题
-- `hard`：文档里有答案但措辞复杂、检索较难的问题
-- `fallback`：文档里**没有**答案的问题，系统应触发兜底、拒绝回答
-
-### 2. 运行评估
+Build the index on the host first so `chroma_db/` exists, then build and run the UI container:
 
 ```bash
-python evaluate.py                     # 读取默认 ./test_set.csv
-python evaluate.py --csv path/to.csv   # 指定其他路径
+docker build -t regurag .
+docker run --env-file .env -p 8501:8501 \
+  -v "$PWD/chroma_db:/app/chroma_db" \
+  regurag
 ```
 
-首次运行会下载/加载 embedding 模型，RAGAS 评估阶段会多次调用 Groq API（每道题约 4-8 次），整体耗时约 2-5 分钟。
+Open `http://localhost:8501`.
 
-### 3. 解读结果
+## Evaluation
 
-**终端输出示例：**
+Install evaluation-only dependencies:
 
-```
-▌ RAGAS 指标（normal + hard 类，范围 0-1，越高越好）
-
-  忠实度（防幻觉）    0.8750  [█████████████████░░░]
-  答案相关性          0.9120  [██████████████████░░]
-  检索精准度          0.7500  [███████████████░░░░░]
-  检索召回率          0.6800  [█████████████░░░░░░░]
-
-▌ 兜底正确率（fallback 类）
-
-  100.00%（2/2 条正确触发兜底）
+```bash
+pip install -r requirements-eval.txt
 ```
 
-**各指标的理想值和调优方向：**
+Run the default small evaluation set:
 
-| 指标 | 理想值 | 偏低时怎么调 |
-|------|--------|-------------|
-| faithfulness（忠实度） | > 0.85 | 加强 Prompt 的约束语；减少检索片段数量 |
-| answer_relevancy（答案相关性） | > 0.85 | 优化 Prompt 的问答格式要求 |
-| context_precision（检索精准度） | > 0.75 | 调高 `RELEVANCE_THRESHOLD`；减小 `TOP_K` |
-| context_recall（检索召回率） | > 0.75 | 增大 `TOP_K`；减小 `CHUNK_SIZE` 让切分更细 |
-| fallback_accuracy（兜底正确率） | 1.0 | 调高 `RELEVANCE_THRESHOLD`（如 0.3 → 0.4） |
-
-**调参工作流：**
-
-1. 在 `config.py` 里改一个参数（如 `CHUNK_SIZE = 600`）
-2. 重新建库：`python main.py build`
-3. 重新评估：`python evaluate.py`
-4. 对比 `optimization_log.csv` 里新旧两行的分数
-5. 手动填写 `change_made` 和 `notes` 列，记录本次改了什么
-
----
-
-## 项目结构
-
-```
-ReguRAG/
-├── main.py                    # CLI 入口：build（建库）/ ask（问答）
-├── app.py                     # Streamlit 网页界面入口（streamlit run app.py）
-├── evaluate.py                # 自动评估脚本（python evaluate.py）
-├── config.py                  # 集中配置：模型、阈值、路径、切分参数等
-├── requirements.txt           # Python 依赖
-├── .env.example               # API Key 配置模板
-├── .gitignore
-├── test_set.csv               # 评估测试集（自行准备，格式见 README）
-├── optimization_log.csv       # 调参日志（evaluate.py 自动追加）
-│
-├── src/
-│   ├── __init__.py
-│   ├── document_loader.py     # 文档加载（txt/pdf）+ 文本切分
-│   ├── vector_store.py        # Embedding 模型 + Chroma 建库/加载/检索
-│   └── qa_chain.py            # Prompt 构建 + 阈值判断 + Claude 调用
-│
-├── data/                      # 放置法规文档（.txt / .pdf）
-│   ├── china_banking_regulation_sample.txt
-│   └── basel_framework_sample.txt
-│
-└── chroma_db/                 # 自动生成，Chroma 向量库持久化目录（不提交 git）
+```bash
+PYTHONPATH=src python -m regurag.evaluate
 ```
 
----
+Use a custom CSV:
 
-## 数据来源
+```bash
+PYTHONPATH=src python -m regurag.evaluate --csv path/to/test_set.csv
+```
 
-示例文件中的内容为简化示意性文本，真实使用时请从以下官方渠道获取正式法规文档：
+Expected CSV columns:
 
-| 机构 | 说明 | 获取地址 |
-|------|------|----------|
-| 国家金融监督管理总局（NFRA） | 银行、保险监管规则 | https://www.nfra.gov.cn |
-| 中国人民银行（PBC） | 货币政策、支付清算相关法规 | https://www.pbc.gov.cn |
-| 中国证券监督管理委员会（CSRC） | 证券、基金监管规则 | https://www.csrc.gov.cn |
-| 巴塞尔委员会（BCBS） | Basel I/II/III 国际监管框架 | https://www.bis.org/bcbs/ |
-| SEC EDGAR（美国） | 上市公司信息披露、联邦证券法 | https://www.sec.gov/edgar |
-| EUR-Lex（欧盟） | CRR/CRD、MiFID II 等欧盟法规 | https://eur-lex.europa.eu |
+```text
+id,question,gold_answer,source_clause,type,notes
+```
 
-**使用建议**：下载 PDF 后直接放入 `data/` 目录，运行 `python main.py build` 重建向量库即可，无需修改代码。
+Supported `type` values:
 
----
+- `normal`: the document library should contain a direct answer.
+- `hard`: the answer exists but retrieval or wording may be harder.
+- `fallback`: the document library should not answer the question.
 
-## 配置说明
+## Configuration
 
-所有关键参数集中在 `config.py`，调优时只需修改此文件：
+Core settings live in `src/regurag/config.py`.
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | 用于答案生成的 Groq 模型 |
-| `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | 本地 embedding 模型 |
-| `CHUNK_SIZE` | `800` | 每个文本块的最大字符数，越小检索越精准但上下文越少 |
-| `CHUNK_OVERLAP` | `100` | 相邻块重叠字符数，减少关键信息被切断的概率 |
-| `TOP_K` | `4` | 每次检索返回的候选片段数量 |
-| `RELEVANCE_THRESHOLD` | `0.3` | 防幻觉阈值，低于此值拒绝生成（调高更严格，调低更宽松） |
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` | Final answer generation model |
+| `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Local embedding model |
+| `CHUNK_SIZE` | `500` | Maximum chunk size |
+| `CHUNK_OVERLAP` | `100` | Chunk overlap |
+| `TOP_K` | `4` | Number of retrieved candidates |
+| `RELEVANCE_THRESHOLD` | `0.6` | Minimum score required before calling the LLM |
 
----
+## Notes
 
-## 设计思路
-
-**为什么在金融合规场景必须防幻觉？**
-
-普通问答场景里，LLM 给出一个不太准确的答案顶多带来困惑。但在合规场景下：
-- 误引一条不存在的监管条款，可能导致企业按错误标准设计产品
-- 错误解读资本充足率要求，可能使银行内部政策偏离监管红线
-- 幻觉内容一旦被引用进合规报告，责任难以追究
-
-因此本项目的防幻觉策略是**结构性的**，而非依赖模型自我约束：
-
-1. **阈值拦截**：在调用 LLM 之前判断相关度，不相关的问题根本不进入生成环节。
-2. **Prompt 约束**：即使进入生成环节，Prompt 中用 XML 标签将法规原文与指令严格隔离，并明确禁止模型使用原文以外的知识。
-3. **来源展示**：在 UI 层将参考来源和相关度分数一起展示给用户，让用户自行判断，而不是只接受一个结论。
-
-**为什么 Embedding 不用 Claude / OpenAI，答案生成才用 Claude？**
-
-- 建库阶段可能处理数千个文本块，每块都调用付费 Embedding API 成本极高。
-- `paraphrase-multilingual-MiniLM-L12-v2` 完全离线运行，中英文效果均可，首次下载约 400MB 后永久缓存，边际成本为零。
-- 答案生成是最需要语言理解与推理能力的环节，Claude 的优势在此处体现。
-
----
-
-## Roadmap
-
-- [ ] **多轮对话支持**：记录对话历史，支持追问（"那它的计算方式呢？"）
-- [x] **评估体系**：引入 RAGAS，量化 faithfulness / answer_relevancy / context_precision / context_recall（`evaluate.py`）
-- [ ] **混合检索**：结合关键词检索（BM25）与向量检索，提升在专有名词（如"NSFR"）上的召回率
-- [ ] **文档来源管理**：支持按监管机构、生效日期、法规类型筛选检索范围
-- [ ] **增量建库**：新增文档时只更新新文档对应的向量，无需全量重建
-- [x] **Web UI**：基于 Streamlit 提供浏览器交互界面（`app.py`）
-- [ ] **更多格式**：支持 .docx（Word 格式监管指引）
-- [ ] **答案置信度**：在答案旁展示结构化的置信度评分和不确定性说明
-
----
-
-## 许可证
-
-MIT License
-
----
-
-*本项目为个人学习与作品集项目，示例数据仅供演示，不构成任何法律或合规建议。*
+This project is for development and demonstration. It is not legal, regulatory, or compliance advice. Production use would need stronger document versioning, jurisdiction metadata, retrieval evaluation, audit logging, and human review.

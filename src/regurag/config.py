@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
-CLAUDE_MODEL = "claude-opus-4-8"  # model used for final answer generation
+CLAUDE_MODEL = "claude-sonnet-4-6"  # model used for final answer generation
 EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 CHROMA_PERSIST_DIR = "./chroma_db"  # directory for persisted vector store
 CHROMA_COLLECTION_NAME = "regurag_docs"  # collection name inside Chroma
@@ -14,7 +14,7 @@ DATA_DIR = "./data"
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
-RELEVANCE_THRESHOLD = 0.3
+RELEVANCE_THRESHOLD = 0.6
 TOP_K = 4
 FALLBACK_MESSAGE = (
     "No relevant provisions were found in the current regulatory library.\n"

@@ -2,19 +2,15 @@
 ReguRAG — command-line entry point
 
 Usage:
-  python main.py build   # load documents from data/, chunk, and build the vector store
-  python main.py ask     # start interactive Q&A (requires a built vector store)
+  python -m regurag.main build   # load documents, chunk them, and build the vector store
+  python -m regurag.main ask     # start interactive Q&A
 """
 import sys
-import os
 
-# Add the project root to sys.path so that src/ modules can import config
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from config import ANTHROPIC_API_KEY, DATA_DIR
-from src.document_loader import load_documents, split_documents
-from src.vector_store import build_vector_store, load_vector_store
-from src.qa_chain import ask
+from regurag.config import ANTHROPIC_API_KEY, DATA_DIR
+from regurag.document_loader import load_documents, split_documents
+from regurag.qa_chain import ask
+from regurag.vector_store import build_vector_store, load_vector_store
 
 
 def check_api_key():
@@ -58,7 +54,7 @@ def cmd_build():
     print("\n" + "=" * 55)
     print("  Index built successfully!")
     print("  Start Q&A with:")
-    print("    python main.py ask")
+    print("    python -m regurag.main ask")
     print("=" * 55)
 
 
@@ -92,7 +88,6 @@ def cmd_ask():
             print("Goodbye!")
             break
 
-        # ── run the RAG pipeline ──────────────────────────────────────
         result = ask(vector_store, query)
 
         print("\n" + "─" * 55)
@@ -118,8 +113,8 @@ def main():
     """Parse the subcommand and dispatch to the appropriate function."""
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python main.py build   # build the vector store (run once, or after adding docs)")
-        print("  python main.py ask     # start Q&A")
+        print("  python -m regurag.main build   # build the vector store")
+        print("  python -m regurag.main ask     # start Q&A")
         sys.exit(1)
 
     command = sys.argv[1].lower()

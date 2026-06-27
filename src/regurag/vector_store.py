@@ -1,7 +1,7 @@
 import os
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from config import (
+from regurag.config import (
     EMBEDDING_MODEL,
     CHROMA_PERSIST_DIR,
     CHROMA_COLLECTION_NAME,
@@ -66,12 +66,12 @@ def build_vector_store(chunks: list) -> Chroma:
 def load_vector_store() -> Chroma:
     """
     Load an existing Chroma vector store from disk (no rebuild).
-    Requires 'python main.py build' to have been run first.
+    Requires the build command to have been run first.
     """
     if not os.path.exists(CHROMA_PERSIST_DIR):
         raise FileNotFoundError(
             f"Vector store directory '{CHROMA_PERSIST_DIR}' not found.\n"
-            "Run: python main.py build"
+            "Run: PYTHONPATH=src python -m regurag.main build"
         )
 
     embeddings = get_embedding_model()

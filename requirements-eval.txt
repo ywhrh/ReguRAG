@@ -1,0 +1,9 @@
+-r requirements.txt
+
+# Automated evaluation
+ragas>=0.4.0               # RAG evaluation framework
+pandas>=2.0.0              # CSV loading
+langchain-anthropic>=0.3.0 # RAGAS judge wrapper
+langchain-voyageai>=0.1.0  # RAGAS answer relevancy/context metrics embeddings
+
+# In ragas 0.4.x, instructor is installed transitively.

@@ -1,4 +1,5 @@
 .env
+.claude/
 
 # Python
 __pycache__/
@@ -8,13 +9,17 @@ dist/
 build/
 .eggs/
 
-#
+# Virtual environments
 .venv/
 venv/
 env/
 
-# Chroma 向量库 (too big, good to rebuild locally)
+# local db
 chroma_db/
+eval_cache.json
+optimization_log.csv
+# test files
+/data/*
 
 # HuggingFace model cache, too big
 .cache/
