@@ -79,20 +79,20 @@ IDE files are ignored.
 ```bash
 cp .env.example .env
 # add your api keys in .env
+# place your `.pdf` or `.txt` regulatory files under `data/`
 
 docker build -t regurag .
-# (docker run will build ChromaDB from files in data/ before starting the web UI)
+# (docker run attempts to build ChromaDB from files in data/ before starting the web UI)
 docker run --env-file .env -p 8501:8501 \
   -v "$PWD/data:/app/data" \
   -v "$PWD/chroma_db:/app/chroma_db" \
   regurag
-
 # Open `http://localhost:8501` , and submit your questions!
 
 
 ```
 
-### Run with Python virtual env
+### Run locally
 
 ```bash
 python -m venv .venv
@@ -121,6 +121,40 @@ PYTHONPATH=src streamlit run src/regurag/app.py
 - After that, the model is stored locally, so future runs are faster and can reuse the cached copy.
 
 ## RAG Evaluation
+
+### Evaluate with Docker
+
+```bash
+# Build the image, then build chroma_db before evaluation if needed.
+# Evaluation will fail if chroma_db has not been built yet.
+docker build -t regurag .
+docker run --env-file .env \
+  -v "$PWD/data:/app/data:ro" \
+  -v "$PWD/chroma_db:/app/chroma_db" \
+  regurag \
+  python -m regurag.main build
+
+mkdir -p eval-results
+
+# Run the default small evaluation set:
+# Outputs are copied to eval-results/.
+docker run --env-file .env \
+  -v "$PWD/chroma_db:/app/chroma_db" \
+  -v "$PWD/tests/eval:/app/tests/eval:ro" \
+  -v "$PWD/eval-results:/outputs" \
+  regurag \
+  sh -c "python -m regurag.evaluate && cp eval_cache.json optimization_log.csv /outputs/"
+
+# Optional: use a custom evaluation csv
+docker run --env-file .env \
+  -v "$PWD/chroma_db:/app/chroma_db" \
+  -v "$PWD/tests/eval:/app/tests/eval:ro" \
+  -v "$PWD/eval-results:/outputs" \
+  regurag \
+  sh -c "python -m regurag.evaluate --csv tests/eval/test_set.csv && cp eval_cache.json optimization_log.csv /outputs/"
+```
+
+### Evaluate locally
 
 ```bash
 # Install evaluation-only dependencies:
