@@ -55,8 +55,7 @@ ReguRAG/
 ├── .env.example
 ├── data/                  # local regulatory source files
 ├── tests/
-│   ├── eval/              # evaluation CSVs
-│   └── smoke/             # small manual checks
+│   └── eval/              # evaluation CSVs
 └── src/
     └── regurag/
         ├── app.py         # Streamlit UI
@@ -65,6 +64,7 @@ ReguRAG/
         ├── evaluate.py
         ├── main.py        # CLI entry point
         ├── qa_chain.py
+        ├── smoke/         # small manual checks
         ├── vector_store.py
         └── parser/
 ```
@@ -81,8 +81,9 @@ cp .env.example .env
 # add your api keys in .env
 
 docker build -t regurag .
-# (docker run will build chromaDB before start web UI)
+# (docker run will build ChromaDB from files in data/ before starting the web UI)
 docker run --env-file .env -p 8501:8501 \
+  -v "$PWD/data:/app/data" \
   -v "$PWD/chroma_db:/app/chroma_db" \
   regurag
 
@@ -124,6 +125,8 @@ PYTHONPATH=src streamlit run src/regurag/app.py
 ```bash
 # Install evaluation-only dependencies:
 pip install -r requirements-eval.txt
+
+# Evaluation requires both ANTHROPIC_API_KEY and VOYAGE_API_KEY in .env.
 
 # Run the default small evaluation set:
 PYTHONPATH=src python -m regurag.evaluate
