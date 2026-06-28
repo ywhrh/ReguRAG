@@ -2,7 +2,8 @@
 
 import streamlit as st
 
-from regurag.config import ANTHROPIC_API_KEY, RELEVANCE_THRESHOLD
+from regurag.config import ANTHROPIC_API_KEY, DATA_DIR, RELEVANCE_THRESHOLD
+from regurag.document_loader import get_supported_document_files
 from regurag.qa_chain import ask
 from regurag.vector_store import load_vector_store
 
@@ -10,6 +11,34 @@ from regurag.vector_store import load_vector_store
 st.set_page_config(page_title="ReguRAG Financial Regulatory Q&A", layout="centered")
 st.title("ReguRAG Financial Regulatory Q&A")
 st.caption("Retrieval-augmented answers with source citations and a relevance guardrail.")
+
+
+source_files = get_supported_document_files(DATA_DIR)
+
+with st.sidebar:
+    st.header("Source Files")
+    st.caption(f"Loaded from `{DATA_DIR}/`")
+
+    if source_files:
+        st.success(f"{len(source_files)} file(s) available")
+        for filename in source_files:
+            st.text(filename)
+    else:
+        st.warning("No .txt or .pdf files found.")
+        st.markdown(
+            "Add regulatory documents to `data/`, then rebuild the index:\n\n"
+            "```bash\n"
+            "PYTHONPATH=src python -m regurag.main build\n"
+            "```"
+        )
+
+
+if not source_files:
+    st.error(
+        "No regulatory source files were found.\n\n"
+        "Add `.txt` or `.pdf` files to the `data/` directory, then rebuild the Chroma index."
+    )
+    st.stop()
 
 
 @st.cache_resource(show_spinner="Loading vector store...")
@@ -23,7 +52,7 @@ try:
 except FileNotFoundError:
     st.error(
         "Vector store not found: `chroma_db/` does not exist.\n\n"
-        "Build the index before starting the web UI:\n\n"
+        "Build the index from the source files shown in the sidebar before asking questions:\n\n"
         "```\nPYTHONPATH=src python -m regurag.main build\n```"
     )
     st.stop()

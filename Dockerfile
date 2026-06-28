@@ -18,4 +18,4 @@ COPY . .
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "src/regurag/app.py"]
+CMD ["sh", "-c", "python -m regurag.main build || true; exec streamlit run src/regurag/app.py"]

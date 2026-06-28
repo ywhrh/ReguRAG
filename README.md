@@ -21,7 +21,7 @@ low-relevance questions are blocked before the LLM call to reduce unsupported an
 RAG
 
 - Text splitting: custom Chinese article splitter + LangChain RecursiveCharacterTextSplitter
-- Document loading: LangChain TextLoader, PyPDFLoader, pydf (parsing dependency)
+- Document loading: LangChain TextLoader, PyPDFLoader, pypdf (parsing dependency)
 - RAG framework: LangChain
 - Vector database: ChromaDB
 - Embedding model: paraphrase-multilingual-MiniLM-L12-v2
@@ -74,109 +74,71 @@ IDE files are ignored.
 
 ## QuickStart
 
-clone the repo
-
-create a local .env file, with your ANTHROPIC_API_KEY and VOYAGE_API_KEY
+### Run with Docker
 
 ```bash
+cp .env.example .env
+# add your api keys in .env
+
 docker build -t regurag .
+# (docker run will build chromaDB before start web UI)
 docker run --env-file .env -p 8501:8501 \
   -v "$PWD/chroma_db:/app/chroma_db" \
   regurag
+
+# Open `http://localhost:8501` , and submit your questions!
+
+
 ```
 
-Open `http://localhost:8501` , and submit your questions!
-
-## Setup
+### Run with Python virtual env
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-Create a local `.env` file:
-
-```bash
 cp .env.example .env
-```
+# add your api keys in .env
 
-Then add:
+# Place your `.pdf` or `.txt` regulatory files under `data/`
+PYTHONPATH=src python -m regurag.main build # chunks data and embeds each chunk, store the resulting vectors into `chroma_db/`
 
-```text
-ANTHROPIC_API_KEY=your_key_here
-```
-
-The embedding model downloads from Hugging Face on first use and is cached locally afterward.
-
-## Build The Index
-
-Place `.pdf` or `.txt` regulatory files under `data/`, then run:
-
-```bash
-PYTHONPATH=src python -m regurag.main build
-```
-
-This creates `chroma_db/`.
-
-## Ask From The CLI
-
-```bash
+# Option1: ask from the CLI
 PYTHONPATH=src python -m regurag.main ask
-```
 
-## Run The Web UI
-
-```bash
+# Option2: ask from the Web UI
 PYTHONPATH=src streamlit run src/regurag/app.py
+# Open `http://localhost:8501` , and submit your questions!
+
 ```
 
-Open `http://localhost:8501`.
+### Note
 
-## Docker
+- The project does not store embedding model. The first time you run the project, it may take longer because it
+  downloads the embedding model from Hugging Face.
+- After that, the model is stored locally, so future runs are faster and can reuse the cached copy.
 
-Build the index on the host first so `chroma_db/` exists, then build and run the UI container:
-
-```bash
-docker build -t regurag .
-docker run --env-file .env -p 8501:8501 \
-  -v "$PWD/chroma_db:/app/chroma_db" \
-  regurag
-```
-
-Open `http://localhost:8501`.
-
-## Evaluation
-
-Install evaluation-only dependencies:
+## RAG Evaluation
 
 ```bash
+# Install evaluation-only dependencies:
 pip install -r requirements-eval.txt
-```
 
-Run the default small evaluation set:
-
-```bash
+# Run the default small evaluation set:
 PYTHONPATH=src python -m regurag.evaluate
-```
 
-Use a custom CSV:
-
-```bash
+# Optional: Use a custom evaluation csv
+# custom csv columns: id,question,gold_answer,source_clause,type,notes
+# Supported `type` values:
+#- `normal`: the document library should contain a direct answer.
+#- `hard`: the answer exists but retrieval or wording may be harder.
+#- `fallback`: the document library should not answer the question.
 PYTHONPATH=src python -m regurag.evaluate --csv path/to/test_set.csv
+
+# The evaluation results will show in command line and also be saved into `optimization_log.csv`
+
 ```
-
-Expected CSV columns:
-
-```text
-id,question,gold_answer,source_clause,type,notes
-```
-
-Supported `type` values:
-
-- `normal`: the document library should contain a direct answer.
-- `hard`: the answer exists but retrieval or wording may be harder.
-- `fallback`: the document library should not answer the question.
 
 ## Configuration
 

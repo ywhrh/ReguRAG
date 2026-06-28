@@ -1,9 +1,0 @@
-date,chunk_size,chunk_overlap,relevance_threshold,top_k,total_questions,faithfulness,answer_relevancy,context_precision,context_recall,fallback_accuracy,notes
-2026-06-23,800,100,0.3,4,4,0.6139,0.0,0.0,0.0,0.0,
-2026-06-23,800,100,0.3,4,19,0.7339,0.0,0.0,0.0,0.25,
-2026-06-23,800,100,0.3,4,41,0.7314,0.0,0.0,0.0,0.125,
-2026-06-23,800,100,0.8,4,41,0.1667,0.0,0.0,0.0,1.0,RELEVANCE_THRESHOLD 提高后生成答案快了很多，fallback准确度一下拉到1了，但是前面其他指标没什么变化
-2026-06-23,500,100,0.8,4,41,0.1667,0.0,0.0,0.0,1.0,"wront result, didn't rebuild main"
-2026-06-23,500,100,0.3,4,41,0.7006,0.0,0.0,0.0,0.125,"wrong result, didn't rebuild main"
-2026-06-23,500,100,0.3,4,41,0.653,0.0,0.0,0.0,0.125,强制 RAGAS 的 LLM judge 用英文回复，避免 JSON 解析失败
-2026-06-23,500,100,0.3,4,41,0.9299,0.474,0.5101,0.5707,0.0,改成了按照章节切分，并且rebuild了main，保证chunk被重新切分了

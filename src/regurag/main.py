@@ -8,9 +8,22 @@ Usage:
 import sys
 
 from regurag.config import ANTHROPIC_API_KEY, DATA_DIR
-from regurag.document_loader import load_documents, split_documents
+from regurag.document_loader import get_supported_document_files, load_documents, split_documents
 from regurag.qa_chain import ask
 from regurag.vector_store import build_vector_store, load_vector_store
+
+
+def print_data_files_hint(files: list[str]):
+    """Print the regulatory files that will be used, or a setup hint."""
+    if files:
+        print(f"Using {len(files)} source file(s) from {DATA_DIR}/:")
+        for filename in files:
+            print(f"  - {filename}")
+        return
+
+    print(f"No supported source files found in {DATA_DIR}/.")
+    print("Add .txt or .pdf regulatory documents to the data/ directory, then run:")
+    print("  PYTHONPATH=src python -m regurag.main build")
 
 
 def check_api_key():
@@ -34,13 +47,19 @@ def cmd_build():
     print("  ReguRAG — Build Index")
     print("=" * 55)
 
+    source_files = get_supported_document_files(DATA_DIR)
+    print()
+    print_data_files_hint(source_files)
+    if not source_files:
+        sys.exit(1)
+
     # Step 1: load documents
     print(f"\n[1/3] Loading documents from {DATA_DIR}/")
     documents = load_documents(DATA_DIR)
 
     if not documents:
         print(f"\nError: no .txt or .pdf files found in {DATA_DIR}/")
-        print("Add regulatory documents to the data/ directory and retry.")
+        print_data_files_hint([])
         sys.exit(1)
 
     # Step 2: split into chunks
@@ -70,8 +89,20 @@ def cmd_ask():
     print("  Type 'quit' or press Enter on an empty line to exit")
     print("=" * 55 + "\n")
 
+    source_files = get_supported_document_files(DATA_DIR)
+    print_data_files_hint(source_files)
+    if not source_files:
+        print("\nThe CLI cannot answer from an empty document library.")
+        sys.exit(1)
+
     # Load from disk — no rebuild needed
-    vector_store = load_vector_store()
+    try:
+        vector_store = load_vector_store()
+    except FileNotFoundError as exc:
+        print(f"\nError: {exc}")
+        print("\nBuild the index before asking questions:")
+        print("  PYTHONPATH=src python -m regurag.main build")
+        sys.exit(1)
 
     while True:
         print()

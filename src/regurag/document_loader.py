@@ -6,6 +6,20 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from regurag.config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
 from regurag.parser.chinese_splitter import ChineseSplitter
 
+SUPPORTED_EXTENSIONS = (".txt", ".pdf")
+
+
+def get_supported_document_files(data_dir: str = DATA_DIR) -> list[str]:
+    """Return supported source document filenames in the data directory."""
+    if not os.path.exists(data_dir):
+        return []
+
+    return [
+        filename
+        for filename in sorted(os.listdir(data_dir))
+        if filename.lower().endswith(SUPPORTED_EXTENSIONS)
+    ]
+
 
 def load_documents(data_dir: str = DATA_DIR) -> list:
     """
@@ -26,14 +40,14 @@ def load_documents(data_dir: str = DATA_DIR) -> list:
     for filename in sorted(os.listdir(data_dir)):
         file_path = os.path.join(data_dir, filename)
 
-        if filename.endswith(".txt"):
+        if filename.lower().endswith(".txt"):
             # UTF-8 support non-English
             loader = TextLoader(file_path, encoding="utf-8")
             docs = loader.load()
             documents.extend(docs)
             print(f"  [OK] loaded txt: {filename} ({len(docs)} segment(s))")
 
-        elif filename.endswith(".pdf"):
+        elif filename.lower().endswith(".pdf"):
             # PyPDFLoader splits by page; each page becomes one Document
             loader = PyPDFLoader(file_path)
             docs = loader.load()
